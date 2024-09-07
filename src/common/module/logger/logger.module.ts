@@ -79,6 +79,7 @@ function isHttpErrorObject(err: any): err is HttpErrorObject {
               },
               err: (err: HttpErrorObject) => {
                 if (!isHttpErrorObject(err)) return err;
+
                 return {
                   code: err.errorCode,
                   text: err.errorText,

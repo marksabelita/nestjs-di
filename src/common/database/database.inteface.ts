@@ -1,3 +1,4 @@
+import { ClientSession } from 'mongoose';
 import { Observable } from 'rxjs';
 
 export interface IDatabaseProvider<
@@ -5,18 +6,27 @@ export interface IDatabaseProvider<
   CreateDTO,
   UpdateDTO = Partial<CreateDTO>,
 > {
-  create(dto: CreateDTO): Observable<T>;
-  update(id: string, dto: UpdateDTO): Observable<T>;
+  create(dto: CreateDTO, transaction?: ITransaction): Observable<T>;
+  update(id: string, dto: UpdateDTO, transaction?: ITransaction): Observable<T>;
   findAll(filters?: Record<string, any>): Observable<T[]>;
-  delete(id: string): Observable<boolean>;
+  delete(id: string, transaction?: ITransaction): Observable<boolean>;
   findOne(id: string): Observable<T | null>;
   raw<U>(dto?: Record<string, unknown>): Observable<U>;
+  // startTransaction(): Observable<ITransaction>;
+  // commitTransaction(transaction: ITransaction): Observable<void>;
+  // rollbackTransaction(transaction: ITransaction): Observable<void>;
 }
 
-export interface IBaseRepository<T, CreateDto, UpdateDto> {
-  create(dto: CreateDto): Observable<T>;
-  update(id: string, dto: UpdateDto): Observable<T>;
-  findAll(filters: Record<string, unknown>): Observable<T[]>;
-  delete(id: string): Observable<boolean>;
-  findOne(id: string): Observable<T>;
+export interface IDatabaseTransaction {
+  startTransaction(): Observable<ITransaction>;
+  commitTransaction(transaction: ITransaction): Observable<void>;
+  rollbackTransaction(transaction: ITransaction): Observable<void>;
 }
+
+export interface ITransaction {}
+export interface IMongooseTransaction extends ITransaction, ClientSession {}
+export const IDatabaseTransactionProvider = Symbol(
+  'IDatabaseTransactionProvider',
+);
+
+export const IDatabaseTransaction = Symbol('IDatabaseTransaction');

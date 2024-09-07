@@ -1,7 +1,9 @@
-import { IDatabaseProvider } from './database.inteface';
+import { IDatabaseProvider, ITransaction } from './database.inteface';
 import { ModelCtor, Model } from 'sequelize-typescript';
 import { Observable, from, map, switchMap } from 'rxjs';
 import { Injectable } from '@nestjs/common';
+import { Transaction } from 'sequelize';
+import { ISequalizeTransaction } from './sequalize-transaction.provider';
 
 @Injectable()
 export class SequelizeProvider<
@@ -12,8 +14,20 @@ export class SequelizeProvider<
 {
   constructor(private readonly model: ModelCtor<T>) {}
 
-  create(dto: CreateDTO): Observable<T> {
-    return from(this.model.create(dto as any));
+  // startTransaction(): Observable<Transaction> {
+  //   return from(this.model.sequelize.transaction());
+  // }
+  //
+  // commitTransaction(transaction: ITransaction): Observable<void> {
+  //   return from((transaction as Transaction).commit());
+  // }
+  //
+  // rollbackTransaction(transaction: ITransaction): Observable<void> {
+  //   return from((transaction as Transaction).rollback());
+  // }
+
+  create(dto: CreateDTO, transaction?: ISequalizeTransaction): Observable<T> {
+    return from(this.model.create(dto as any, { transaction }));
   }
 
   update(id: string, dto: UpdateDTO): Observable<T> {

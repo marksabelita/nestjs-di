@@ -1,5 +1,8 @@
 import { Observable } from 'rxjs';
-import { IBaseRepository } from 'src/common/database/database.inteface';
+import {
+  IDatabaseProvider,
+  ITransaction,
+} from 'src/common/database/database.inteface';
 import { CreateDto, UpdateDto } from './dto/create.dto';
 
 export interface ICat {
@@ -8,11 +11,15 @@ export interface ICat {
 }
 
 export interface ICatRepository
-  extends IBaseRepository<ICat, CreateDto, UpdateDto> {
-  create(dto: CreateDto): Observable<ICat>;
-  update(id: string, dto: UpdateDto): Observable<ICat>;
+  extends IDatabaseProvider<ICat, CreateDto, UpdateDto> {
+  create(dto: CreateDto, transaction?: ITransaction): Observable<ICat>;
+  update(
+    id: string,
+    dto: UpdateDto,
+    transaction?: ITransaction,
+  ): Observable<ICat>;
   findAll(filters: Record<string, unknown>): Observable<ICat[]>;
-  delete(id: string): Observable<boolean>;
+  delete(id: string, transaction?: ITransaction): Observable<boolean>;
   findOne(id: string): Observable<ICat>;
 }
 
@@ -31,6 +38,8 @@ export interface ICatResponse {
 }
 
 export const ICatService = Symbol('ICatService');
-export const ICatSequalizeProvider = Symbol('ICatSequlizeProvider');
-export const ICatMongoProvider = Symbol('ICatMongoProvider');
+export const ICatDatabaseProvider = Symbol('ICatSequlizeProvider');
 export const ICatRepository = Symbol('ICatRepository');
+export const ICatDatabaseTransactionProvider = Symbol(
+  'ICatDatabaseTransactionProvider',
+);

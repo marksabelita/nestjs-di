@@ -15,7 +15,6 @@ export class CatController {
 
   @Post()
   create(): Observable<ICatResponse> {
-    const service = this.catService;
-    return service.create({ name: randomUUID() });
+    return this.catService.create({ name: randomUUID() });
   }
 }

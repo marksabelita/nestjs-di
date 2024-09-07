@@ -1,12 +1,13 @@
 // base-repository.ts
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Observable, from } from 'rxjs';
-import { IBaseRepository } from './database.inteface';
+import { ITransaction } from './database.inteface';
 import { IDatabaseProvider } from 'src/common/database/database.inteface';
+import { ILoggerService } from '../module/logger/logger.interface';
 
 @Injectable()
 export abstract class BaseRepository<T, CreateDto, UpdateDto>
-  implements IBaseRepository<T, CreateDto, UpdateDto>
+  implements IDatabaseProvider<T, CreateDto, UpdateDto>
 {
   constructor(
     protected readonly databaseProvider: IDatabaseProvider<
@@ -14,13 +15,25 @@ export abstract class BaseRepository<T, CreateDto, UpdateDto>
       CreateDto,
       UpdateDto
     >,
+    @Inject(ILoggerService)
+    protected readonly loggerService: ILoggerService,
   ) {}
 
-  create(dto: CreateDto): Observable<T> {
-    return from(this.databaseProvider.create(dto));
+  raw<U>(dto?: Record<string, unknown>): Observable<U> {
+    this.loggerService.log({ dto }, 'rawRepository');
+
+    throw new Error('Method not implemented.');
   }
 
-  update(id: string, dto: UpdateDto): Observable<T> {
+  create(dto: CreateDto, transaction: ITransaction): Observable<T> {
+    this.loggerService.log({ dto }, 'createRepository');
+
+    return from(this.databaseProvider.create(dto, transaction));
+  }
+
+  update(id: string, dto: UpdateDto, transaction: ITransaction): Observable<T> {
+    this.loggerService.log({ dto }, 'updateRepository');
+
     return from(this.databaseProvider.update(id, dto));
   }
 
@@ -28,8 +41,8 @@ export abstract class BaseRepository<T, CreateDto, UpdateDto>
     return from(this.databaseProvider.findAll());
   }
 
-  delete(id: string): Observable<boolean> {
-    return from(this.databaseProvider.delete(id));
+  delete(id: string, transaction: ITransaction): Observable<boolean> {
+    return from(this.databaseProvider.delete(id, transaction));
   }
 
   findOne(id: string): Observable<T> {
