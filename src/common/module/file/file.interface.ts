@@ -13,6 +13,10 @@ export interface IFileService {
 
 export interface IFileConfig {}
 
+export enum EStorageType {
+  S3 = 's3',
+}
+
 export interface IStorageConfig {
   type: 'local' | 's3';
   config: any;

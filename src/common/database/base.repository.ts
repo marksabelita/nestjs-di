@@ -38,14 +38,19 @@ export abstract class BaseRepository<T, CreateDto, UpdateDto>
   }
 
   findAll(): Observable<T[]> {
+    this.loggerService.log({}, 'createRepository');
+
     return from(this.databaseProvider.findAll());
   }
 
   delete(id: string, transaction: ITransaction): Observable<boolean> {
+    this.loggerService.log({ id }, 'createRepository');
     return from(this.databaseProvider.delete(id, transaction));
   }
 
   findOne(id: string): Observable<T> {
+    this.loggerService.log({ id }, 'createRepository');
+
     return from(this.databaseProvider.findOne(id));
   }
 }

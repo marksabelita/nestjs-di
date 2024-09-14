@@ -27,7 +27,7 @@ import { IUserSequalizeProvider } from 'src/module/user/user.interface';
     }),
     MongooseModule.forRootAsync({
       useFactory: async () => ({
-        uri: '',
+        uri: 'mongodb+srv://backup-user:backup-user@projects.v8weu3x.mongodb.net/',
         dbName: 'project',
       }),
       inject: [],
