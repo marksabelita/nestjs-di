@@ -67,45 +67,45 @@ function isHttpErrorObject(err: any): err is HttpErrorObject {
                 };
               },
               res: (res: HttpResponse) => {
-                // if (!(res as any).sent) return;
-                // console.log(res);
-
                 return {
                   code: res.statusCode,
                   text: HttpStatus[res.statusCode],
-                  // time: Math.round((res as any).getResponseTime()),
-                  // transactionId: res.header('x-transaction-id'),
                 };
               },
-              err: (err: HttpErrorObject) => {
-                if (!isHttpErrorObject(err)) return err;
-
+              err: (err: any) => {
                 return {
-                  code: err.errorCode,
-                  text: err.errorText,
-                  data: err.errorData,
+                  type: err.constructor.name,
+                  message: err.message,
+                  stack: err.stack,
+                  ...err,
                 };
+                // Ensure we're capturing all properties of the error
+                const errorObject: any = {
+                  type: err.constructor.name,
+                  message: err.message,
+                  stack: err.stack,
+                };
+
+                // Include all enumerable properties
+                for (const key in err) {
+                  if (Object.prototype.hasOwnProperty.call(err, key)) {
+                    errorObject[key] = err[key];
+                  }
+                }
+
+                // If there's a response property (common in Axios errors), include its data
+                if (err.response && err.response.data) {
+                  errorObject.responseData = err.response.data;
+                }
+
+                return errorObject;
               },
             },
             mixin: () => {
-              // This function would typically access request-specific data
-              // For demonstration, we're returning a static object
               return {
                 node: {
                   pid: process.pid || undefined,
                   version: process.version?.replace('v', '') || undefined,
-                },
-                auth: {
-                  apiKey: undefined,
-                  bearerToken: undefined,
-                },
-                user: {
-                  oktaUserId: undefined,
-                  argoUserId: undefined,
-                  synapseUserId: undefined,
-                  experianUserId: undefined,
-                  fingerprint: undefined,
-                  role: undefined,
                 },
               };
             },

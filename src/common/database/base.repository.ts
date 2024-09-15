@@ -20,36 +20,36 @@ export abstract class BaseRepository<T, CreateDto, UpdateDto>
   ) {}
 
   raw<U>(dto?: Record<string, unknown>): Observable<U> {
-    this.loggerService.log({ dto }, 'rawRepository');
+    this.loggerService.log({ dto }, 'BaseRepository.raw');
 
     throw new Error('Method not implemented.');
   }
 
   create(dto: CreateDto, transaction: ITransaction): Observable<T> {
-    this.loggerService.log({ dto }, 'createRepository');
+    this.loggerService.log({ dto }, 'BaseRepository.create');
 
     return from(this.databaseProvider.create(dto, transaction));
   }
 
   update(id: string, dto: UpdateDto, transaction: ITransaction): Observable<T> {
-    this.loggerService.log({ dto }, 'updateRepository');
+    this.loggerService.log({ dto }, 'BaseRepository.update');
 
     return from(this.databaseProvider.update(id, dto));
   }
 
   findAll(): Observable<T[]> {
-    this.loggerService.log({}, 'createRepository');
+    this.loggerService.log({}, 'BaseRepository.findAll');
 
     return from(this.databaseProvider.findAll());
   }
 
   delete(id: string, transaction: ITransaction): Observable<boolean> {
-    this.loggerService.log({ id }, 'createRepository');
+    this.loggerService.log({ id }, 'BaseRepository.delete');
     return from(this.databaseProvider.delete(id, transaction));
   }
 
   findOne(id: string): Observable<T> {
-    this.loggerService.log({ id }, 'createRepository');
+    this.loggerService.log({ id }, 'BaseRepository.findOne');
 
     return from(this.databaseProvider.findOne(id));
   }

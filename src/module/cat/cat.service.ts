@@ -64,6 +64,8 @@ export class CatService implements ICatService {
   }
 
   findAll(filters: Record<string, unknown>): Observable<ICatResponse[]> {
+    this.loggerService.log(filters, 'CatService.findAll');
+
     return from(this.catRepository.findAll(filters));
   }
 
