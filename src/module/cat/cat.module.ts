@@ -4,7 +4,7 @@ import { CatCoreModule } from './cat.core.module';
 import { LoggerModule } from 'src/common/module/logger/logger.module';
 
 @Module({
-  imports: [CatCoreModule, LoggerModule],
+  imports: [CatCoreModule],
   controllers: [CatController],
 })
 export class CatModule {}

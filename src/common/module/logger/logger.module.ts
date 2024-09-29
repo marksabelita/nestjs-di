@@ -90,6 +90,6 @@ import { censorValue, mapPaths } from './logger.utils';
       useClass: LoggerService,
     },
   ],
-  exports: [ILoggerService, IHttpContextService],
+  exports: [ILoggerService, IHttpContextService, ILoggerAdapter],
 })
 export class LoggerModule {}

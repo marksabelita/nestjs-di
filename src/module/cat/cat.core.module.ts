@@ -55,7 +55,11 @@ import { LoggerService } from 'src/common/module/logger/logger.service';
         new SequelizeProvider<CatModel, CreateDto, UpdateDto>(catModel),
       inject: [sequelizeModelToken(CatModel)],
     },
+    {
+      provide: ILoggerService,
+      useClass: LoggerService,
+    },
   ],
-  exports: [ICatService],
+  exports: [ICatService, ILoggerService],
 })
 export class CatCoreModule {}

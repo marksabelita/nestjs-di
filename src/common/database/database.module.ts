@@ -1,24 +1,19 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { CatModel } from 'src/module/cat/cat.entity';
+import { EnvironmentModule } from '../module/environment/environment.module';
+import { IEnvironmentService } from '../module/environment/environment.interface';
 // import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
     SequelizeModule.forRootAsync({
-      useFactory: () => ({
-        dialect: 'postgres',
-        dialectOptions: {
-          ssl: false,
-        },
-        host: 'localhost',
-        port: 5432,
-        username: 'citizix_user',
-        password: 'S3cret',
-        database: 'citizix_db',
+      imports: [EnvironmentModule],
+      useFactory: (environmentService: IEnvironmentService) => ({
+        ...environmentService.getPostgresConfig(),
         models: [CatModel],
       }),
-      inject: [],
+      inject: [IEnvironmentService],
     }),
     // MongooseModule.forRootAsync({
     //   useFactory: async () => ({

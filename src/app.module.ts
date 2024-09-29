@@ -5,6 +5,7 @@ import { CatModule } from './module/cat/cat.module';
 import { HttpContextMiddleware } from './common/middleware/http-context.middleware';
 import { DatabaseModule } from './common/database/database.module';
 import { LoggerModule } from './common/module/logger/logger.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [CatModule, DatabaseModule, LoggerModule],

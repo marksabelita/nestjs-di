@@ -4,6 +4,7 @@ import * as request from 'supertest';
 import { DEFAULT_ROUTES } from 'src/common/defaults/routes.default';
 import { CatModule } from 'src/module/cat/cat.module';
 import { DatabaseModule } from 'src/common/database/database.module';
+import { EnvironmentModule } from 'src/common/module/environment/environment.module';
 
 describe('CatController (e2e)', () => {
   let app: INestApplication;
@@ -11,7 +12,7 @@ describe('CatController (e2e)', () => {
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [CatModule, DatabaseModule],
+      imports: [CatModule, DatabaseModule, EnvironmentModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
