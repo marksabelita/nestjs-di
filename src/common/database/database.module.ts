@@ -1,12 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { CatModel } from 'src/module/cat/cat.entity';
-import { MongooseModule } from '@nestjs/mongoose';
-import { IDatabaseTransaction } from './database.inteface';
-// import { Sequelize } from 'sequelize';
-import { Sequelize } from 'sequelize-typescript';
-import { SequelizeTransactionProvider } from './sequalize-transaction.provider';
-import { IUserSequalizeProvider } from 'src/module/user/user.interface';
+// import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
@@ -25,22 +20,13 @@ import { IUserSequalizeProvider } from 'src/module/user/user.interface';
       }),
       inject: [],
     }),
-    MongooseModule.forRootAsync({
-      useFactory: async () => ({
-        uri: 'mongodb+srv://backup-user:backup-user@projects.v8weu3x.mongodb.net/',
-        dbName: 'project',
-      }),
-      inject: [],
-    }),
-  ],
-  providers: [
-    // {
-    //   provide: IDatabaseTransaction,
-    //   useFactory: (sequalize: Sequelize) => {
-    //     return new SequelizeTransactionProvider(sequalize);
-    //   },
-    //   inject: [Sequelize],
-    // },
+    // MongooseModule.forRootAsync({
+    //   useFactory: async () => ({
+    //     uri: '',
+    //     dbName: 'project',
+    //   }),
+    //   inject: [],
+    // }),
   ],
   exports: [],
 })

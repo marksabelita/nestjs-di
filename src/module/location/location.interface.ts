@@ -1,5 +1,9 @@
 import { Observable } from 'rxjs';
-
+import {
+  IDatabaseProvider,
+  ITransaction,
+} from 'src/common/database/database.inteface';
+import { CreateLocationDto, UpdateLocationDto } from './location.dto';
 export interface ILocation {
   id: string;
   x: string;
@@ -14,13 +18,28 @@ export interface ILocationService {
   findOne(): Observable<any>;
 }
 
+export interface ILocationRepository
+  extends IDatabaseProvider<ILocation, CreateLocationDto, UpdateLocationDto> {
+  create(
+    dto: CreateLocationDto,
+    transaction?: ITransaction,
+  ): Observable<ILocation>;
+  update(
+    id: string,
+    dto: UpdateLocationDto,
+    transaction?: ITransaction,
+  ): Observable<ILocation>;
+  findAll(filters: Record<string, unknown>): Observable<ILocation[]>;
+  delete(id: string, transaction?: ITransaction): Observable<boolean>;
+  findOne(id: string): Observable<ILocation>;
+}
+
 export abstract class ILocationResponse {
   id: string;
   x: string;
   y: string;
 }
 
+export const ILocationRepository = Symbol('ILocationRepository');
 export const ILocationService = Symbol('ILocationService');
-export const ILocationService2 = Symbol('ILocationService2');
-
-export const ILocationSequalizeProvider = Symbol('ILocationDatabaseProvider');
+export const ILocationDatabaseProvider = Symbol('ILocationDatabaseProvider');

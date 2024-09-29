@@ -3,7 +3,6 @@ import { ICatResponse, ICatService } from './cat.interface';
 import { forkJoin, from, map, Observable, switchMap } from 'rxjs';
 import { DEFAULT_ROUTES } from 'src/common/defaults/routes.default';
 import { randomUUID } from 'crypto';
-import axios from 'axios';
 import { ILoggerService } from 'src/common/module/logger/logger.interface';
 
 @Controller(DEFAULT_ROUTES.CATS)
@@ -16,14 +15,13 @@ export class CatController {
 
   @Get()
   get(): Observable<ICatResponse[]> {
-    this.loggerService.log('get cats', 'Controller.get');
     return this.catService.findAll({}).pipe(
       switchMap((cats) => {
-        const test = from(axios.get('https://api.example.com/marktest'));
+        // const test = from(axios.get('https://api.example.com/marktest'));
 
         return forkJoin({
           cats: from([cats]),
-          test: test,
+          // test: test,
         });
       }),
       map((response) => {
@@ -34,6 +32,7 @@ export class CatController {
 
   @Post()
   create(): Observable<ICatResponse> {
+    this.loggerService.log({}, 'CatController.create');
     return this.catService.create({ name: randomUUID() });
   }
 }

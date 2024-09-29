@@ -1,59 +1,56 @@
 import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { AxiosError } from 'axios';
-import { Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { HttpAdapterHost } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 
-@Injectable()
-export class ErrorInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    return next.handle().pipe(
-      catchError((error: any) => {
-        const request = context.switchToHttp().getRequest();
-        const transactionId = request.txId;
+@Catch()
+export class ErrorInterceptor implements ExceptionFilter {
+  constructor(
+    private readonly httpAdapterHost: HttpAdapterHost,
+    private readonly logger: Logger,
+  ) {}
 
-        let errorResponse: any = {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          transactionId: transactionId,
-          message: 'Internal server error',
-          timestamp: new Date().toISOString(),
-          path: request.url,
-        };
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const { httpAdapter } = this.httpAdapterHost;
+    const ctx = host.switchToHttp();
+    const request = ctx.getRequest();
+    const response = ctx.getResponse();
 
-        if (error instanceof HttpException) {
-          errorResponse.statusCode = error.getStatus();
-          errorResponse.message = error.message;
-          errorResponse.response = error.getResponse();
-        } else if (error instanceof AxiosError) {
-          errorResponse.statusCode =
-            error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
-          errorResponse.message = error.message;
-          errorResponse.axiosError = {
-            code: error.code,
-            config: error.config,
-            response: error.response?.data,
-          };
-        } else if (error instanceof Error) {
-          errorResponse.message = error.message;
-          errorResponse.stack = error.stack;
-        }
+    const httpStatus =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
-        // Include all properties of the original error
-        for (const key in error) {
-          if (Object.prototype.hasOwnProperty.call(error, key)) {
-            errorResponse[key] = error[key];
-          }
-        }
+    const errorMessage =
+      exception instanceof Error ? exception.message : 'Unknown error';
+    const errorStack = exception instanceof Error ? exception.stack : '';
+    const path = httpAdapter.getRequestUrl(request);
 
-        // Instead of throwing, return a rejected Observable
-        return throwError(() => errorResponse);
-      }),
-    );
+    const responseBody = {
+      statusCode: httpStatus,
+      message: errorMessage,
+      timestamp: new Date().toISOString(),
+      path,
+    };
+
+    this.logger.error({
+      message: errorMessage,
+      statusCode: httpStatus,
+      path: responseBody.path,
+      method: request.method,
+      body: request.body,
+      params: request.params,
+      query: request.query,
+      stack: errorStack,
+      context: 'ExceptionFilter',
+      transactionId: request.txId,
+    });
+
+    httpAdapter.reply(response, responseBody, httpStatus);
   }
 }

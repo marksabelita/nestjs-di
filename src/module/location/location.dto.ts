@@ -1,9 +1,9 @@
-export class LocationCreateDto {
+export class CreateLocationDto {
   x: string;
   y: string;
 }
 
-export class LocationUpdateDto {
+export class UpdateLocationDto {
   x: string;
   y: string;
 }

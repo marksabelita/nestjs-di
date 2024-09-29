@@ -9,12 +9,6 @@ import {
 import { CreateDto, UpdateDto } from './dto/create.dto';
 import { ILoggerService } from 'src/common/module/logger/logger.interface';
 import { IDatabaseTransaction } from 'src/common/database/database.inteface';
-import { FileService } from 'src/common/module/file/file.service';
-import {
-  EStorageType,
-  IFileService,
-  IStorageService,
-} from 'src/common/module/file/file.interface';
 
 @Injectable()
 export class CatService implements ICatService {
@@ -25,13 +19,10 @@ export class CatService implements ICatService {
     private readonly catRepository: ICatRepository,
     @Inject(ILoggerService)
     private readonly loggerService: ILoggerService,
-    @Inject(IStorageService)
-    private readonly storageService: Record<EStorageType, IStorageService>,
   ) {}
 
   create(dto: CreateDto): Observable<ICatResponse> {
-    this.loggerService.log(dto, 'CatService');
-    const test = this.storageService.s3.uploadFile('string');
+    this.loggerService.log(dto, 'CatService.create');
 
     return this.transaction.startTransaction().pipe(
       switchMap((transaction) => {

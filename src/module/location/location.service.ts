@@ -1,28 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  ILocation,
+  ILocationRepository,
   ILocationResponse,
-  ILocationSequalizeProvider,
   ILocationService,
 } from './location.interface';
 import { from, map, Observable } from 'rxjs';
-import { IDatabaseProvider } from 'src/common/database/database.inteface';
-import { LocationCreateDto, LocationUpdateDto } from './location.dto';
+import { CreateLocationDto } from './location.dto';
 
 @Injectable()
 export class LocationService implements ILocationService {
   constructor(
-    @Inject(ILocationSequalizeProvider)
-    private readonly databaseProvider: IDatabaseProvider<
-      ILocation,
-      LocationCreateDto,
-      LocationUpdateDto
-    >,
+    @Inject(ILocationService)
+    private readonly locationRepository: ILocationRepository,
   ) {}
 
-  create(dto: LocationCreateDto): Observable<ILocationResponse> {
+  create(dto: CreateLocationDto): Observable<ILocationResponse> {
     return from(
-      this.databaseProvider.create({
+      this.locationRepository.create({
         x: dto.x,
         y: dto.y,
       }),
@@ -40,7 +34,7 @@ export class LocationService implements ILocationService {
   }
 
   findAll(): Observable<ILocationResponse[]> {
-    return from(this.databaseProvider.findAll()).pipe(
+    return from(this.locationRepository.findAll({})).pipe(
       map((d) => d.map((d) => ({ id: d.id, x: d.x, y: d.y }))),
     );
   }

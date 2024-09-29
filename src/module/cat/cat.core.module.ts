@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
-import { CatController } from './cat.controller';
 import { CatService } from './cat.service';
-import { CatDocument, CatModel, CatSchema } from './cat.entity';
+import { CatModel } from './cat.entity';
 import {
   getModelToken as sequelizeModelToken,
   SequelizeModule,
@@ -14,22 +13,26 @@ import {
   ICatRepository,
   ICatDatabaseProvider,
 } from './cat.interface';
-import { LocationModel } from '../location/location.entity';
 import { CatRepository } from './cat.repository';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { IDatabaseTransaction } from 'src/common/database/database.inteface';
 import { SequelizeTransactionProvider } from 'src/common/database/sequalize-transaction.provider';
 import { Sequelize } from 'sequelize-typescript';
-import { S3StorageService } from 'src/common/module/file/s3-storage.service';
-import { IStorageService } from 'src/common/module/file/file.interface';
+import { LoggerModule } from 'src/common/module/logger/logger.module';
+
+import { ILoggerService } from 'src/common/module/logger/logger.interface';
+import { LoggerService } from 'src/common/module/logger/logger.service';
+// import { S3StorageService } from 'src/common/module/file/s3-storage.service';
+// import { IStorageService } from 'src/common/module/file/file.interface';
+// CatDocument, CatSchema
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([CatModel, LocationModel]),
     // MongooseModule.forFeature([{ name: CatDocument.name, schema: CatSchema }]),
+    SequelizeModule.forFeature([CatModel]),
     ConfigModule,
+    LoggerModule,
   ],
-  controllers: [CatController],
   providers: [
     {
       provide: ICatService,
@@ -52,31 +55,6 @@ import { IStorageService } from 'src/common/module/file/file.interface';
         new SequelizeProvider<CatModel, CreateDto, UpdateDto>(catModel),
       inject: [sequelizeModelToken(CatModel)],
     },
-    // {
-    //   provide: ICatDatabaseProvider,
-    //   useFactory: (model: Model<CatDocument>, connection: Connection) =>
-    //     new MongoDBProvider<CatDocument, CreateDto, UpdateDto>(
-    //       model,
-    //       connection,
-    //     ),
-    //   inject: [mongooseModelToken(CatDocument.name), getConnectionToken()],
-    // },
-    // {
-    //   provide: IDatabaseTransaction,
-    //   useClass: DatabaseTransaction,
-    // },
-    // {
-    //   provide: IFileService,
-    //   useClass: FileService,
-    // },
-    {
-      provide: IStorageService,
-      useFactory: (s3Storage: S3StorageService) => ({
-        s3: s3Storage,
-      }),
-      inject: [S3StorageService],
-    },
-    S3StorageService,
   ],
   exports: [ICatService],
 })
