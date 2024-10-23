@@ -37,6 +37,9 @@ export interface IAuthProvider {
     password: string,
     phoneNumber: string,
   ): Observable<IAuthResponse>;
+  confirmSignUp(email: string, code: string): Observable<boolean>;
+  resendConfirmationCode(email: string): Observable<boolean>;
+
   signIn(email: string, password: string): Observable<IAuthResponse>;
   setupMFA(userId: string): Observable<IMFASetupResponse>;
   verifyMFASetup(
@@ -63,6 +66,8 @@ export interface IAuthService {
   signIn(email: string, password: string): Observable<IAuthResponse>;
   signOut(accessToken: string): Observable<boolean>;
   refreshToken(refreshToken: string): Observable<IRefreshTokenResponse>;
+  confirmSignUp(email: string, code: string): Observable<boolean>;
+  resendConfirmationCode(email: string): Observable<boolean>;
 
   setupMFA(userId: string): Observable<IMFASetupResponse>;
   verifyMFASetup(

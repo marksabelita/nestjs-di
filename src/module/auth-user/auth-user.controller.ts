@@ -33,14 +33,22 @@ export class AuthUserController {
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
   signUp(@Body() credentials: SignUpDto): Observable<IAuthResponse> {
-    console.log(credentials);
-
     return this.authService.signUp(
       credentials.email,
       credentials.password,
       credentials.phoneNumber,
     );
   }
+
+  // @Post('signup')
+  // @HttpCode(HttpStatus.CREATED)
+  // signUp(@Body() credentials: SignUpDto): Observable<IAuthResponse> {
+  //   return this.authService.signUp(
+  //     credentials.email,
+  //     credentials.password,
+  //     credentials.phoneNumber,
+  //   );
+  // }
 
   @Post('signin')
   @HttpCode(HttpStatus.OK)

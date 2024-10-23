@@ -8,12 +8,15 @@ import {
   IMFAVerifyResponse,
   IRefreshTokenResponse,
 } from './auth.interface';
+import { ILoggerService } from '../logger/logger.interface';
 
 @Injectable()
 export class AuthService implements IAuthService {
   constructor(
     @Inject(IAuthProvider)
     private readonly authProvider: IAuthService,
+    @Inject(ILoggerService)
+    private readonly loggerService: ILoggerService,
   ) {}
 
   signUp(
@@ -21,7 +24,18 @@ export class AuthService implements IAuthService {
     password: string,
     phoneNumber: string,
   ): Observable<IAuthResponse> {
+    this.loggerService.log({ email, phoneNumber }, 'AuthService.signUp');
     return this.authProvider.signUp(email, password, phoneNumber);
+  }
+
+  confirmSignUp(email: string, code: string): Observable<boolean> {
+    this.loggerService.log({ email }, 'AuthService.confirmSignUp');
+    return this.authProvider.confirmSignUp(email, code);
+  }
+
+  resendConfirmationCode(email: string): Observable<boolean> {
+    this.loggerService.log({ email }, 'AuthService.resendConfirmationCode');
+    return this.authProvider.resendConfirmationCode(email);
   }
 
   signIn(email: string, password: string): Observable<IAuthResponse> {

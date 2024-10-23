@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
 import { PinoLoggerAdapter } from './pino-provider.service';
 import { HttpContextService } from '../context/http-context.service';
@@ -9,6 +9,7 @@ import { Request as HttpRequest, Response as HttpResponse } from 'express';
 import { HttpStatus } from '@nestjs/common';
 import { censorValue, mapPaths } from './logger.utils';
 
+@Global()
 @Module({
   imports: [
     PinoLoggerModule.forRootAsync({

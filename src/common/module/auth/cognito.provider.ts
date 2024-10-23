@@ -14,6 +14,14 @@ import {
   AdminRespondToAuthChallengeCommand,
   AuthFlowType,
   ChallengeNameType,
+  ConfirmSignUpCommand,
+  CodeMismatchException,
+  ExpiredCodeException,
+  NotAuthorizedException,
+  UserNotFoundException,
+  ResendConfirmationCodeCommand,
+  LimitExceededException,
+  TooManyRequestsException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import {
   IAuthProvider,
@@ -27,6 +35,7 @@ import {
   IEnvironmentService,
 } from '../environment/environment.interface';
 import { createHmac } from 'crypto';
+import { ILoggerService } from '../logger/logger.interface';
 
 @Injectable()
 export class CognitoAuthProvider implements IAuthProvider {
@@ -38,6 +47,8 @@ export class CognitoAuthProvider implements IAuthProvider {
   constructor(
     @Inject(IEnvironmentService)
     private readonly envService: IEnvironmentService,
+    @Inject(ILoggerService)
+    private readonly loggerService: ILoggerService,
   ) {
     this.cognitoClient = new CognitoIdentityProviderClient({
       region: this.envService.get(EEnvironmentVariables.AWS_REGION),
@@ -74,6 +85,8 @@ export class CognitoAuthProvider implements IAuthProvider {
     password: string,
     phoneNumber: string,
   ): Observable<IAuthResponse> {
+    this.loggerService.log({ email }, 'CognitoAuthProvider.confirmSignUp');
+
     const command = new SignUpCommand({
       ClientId: this.clientId,
       Username: email,
@@ -103,7 +116,78 @@ export class CognitoAuthProvider implements IAuthProvider {
     );
   }
 
+  confirmSignUp(email: string, code: string): Observable<boolean> {
+    this.loggerService.log({ email }, 'CognitoAuthProvider.confirmSignUp');
+    const command = new ConfirmSignUpCommand({
+      ClientId: this.clientId,
+      Username: email,
+      ConfirmationCode: code,
+      SecretHash: this.calculateSecretHash(email),
+    });
+
+    return from(this.cognitoClient.send(command)).pipe(
+      map(() => true),
+      catchError((error) => {
+        if (error instanceof CodeMismatchException) {
+          return throwError(() => new Error('Invalid confirmation code'));
+        }
+        if (error instanceof ExpiredCodeException) {
+          return throwError(() => new Error('Confirmation code has expired'));
+        }
+        if (error instanceof NotAuthorizedException) {
+          return throwError(
+            () => new Error('Not authorized to perform confirmation'),
+          );
+        }
+        if (error instanceof UserNotFoundException) {
+          return throwError(() => new Error('User not found'));
+        }
+        return throwError(() => new Error('Failed to confirm signup'));
+      }),
+    );
+  }
+
+  resendConfirmationCode(email: string): Observable<boolean> {
+    this.loggerService.log(
+      { email },
+      'CognitoAuthProvider.resendConfirmationCode',
+    );
+
+    const command = new ResendConfirmationCodeCommand({
+      ClientId: this.clientId,
+      Username: email,
+      SecretHash: this.calculateSecretHash(email),
+    });
+
+    return from(this.cognitoClient.send(command)).pipe(
+      map(() => true),
+      catchError((error) => {
+        if (error instanceof UserNotFoundException) {
+          return throwError(() => new Error('User not found'));
+        }
+        if (error instanceof LimitExceededException) {
+          return throwError(
+            () => new Error('Attempt limit exceeded, please try again later'),
+          );
+        }
+        if (error instanceof TooManyRequestsException) {
+          return throwError(
+            () => new Error('Too many requests, please try again later'),
+          );
+        }
+        if (error instanceof NotAuthorizedException) {
+          return throwError(() => new Error('Not authorized to resend code'));
+        }
+        return throwError(
+          () => new Error('Failed to resend confirmation code'),
+        );
+      }),
+    );
+  }
+
   signIn(email: string, password: string): Observable<IAuthResponse> {
+    this.loggerService.log({ email }, 'CognitoAuthProvider.signIn');
+
     const command = new InitiateAuthCommand({
       AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
       ClientId: this.clientId,
@@ -140,6 +224,11 @@ export class CognitoAuthProvider implements IAuthProvider {
   }
 
   refreshToken(refreshToken: string): Observable<IRefreshTokenResponse> {
+    this.loggerService.log(
+      { refreshToken: refreshToken.length },
+      'CognitoAuthProvider.signIn',
+    );
+
     const command = new InitiateAuthCommand({
       AuthFlow: AuthFlowType.REFRESH_TOKEN_AUTH,
       ClientId: this.clientId,
@@ -167,6 +256,11 @@ export class CognitoAuthProvider implements IAuthProvider {
   }
 
   setupMFA(accessToken: string): Observable<IMFASetupResponse> {
+    this.loggerService.log(
+      { refreshToken: accessToken.length },
+      'CognitoAuthProvider.signIn',
+    );
+
     const command = new AssociateSoftwareTokenCommand({
       AccessToken: accessToken,
     });
@@ -191,6 +285,11 @@ export class CognitoAuthProvider implements IAuthProvider {
     factorId: string,
     code: string,
   ): Observable<IMFAVerifyResponse> {
+    this.loggerService.log(
+      { refreshToken: accessToken.length, code },
+      'CognitoAuthProvider.signIn',
+    );
+
     const command = new VerifySoftwareTokenCommand({
       AccessToken: accessToken,
       UserCode: code,
@@ -217,6 +316,8 @@ export class CognitoAuthProvider implements IAuthProvider {
     factorId: string,
     code: string,
   ): Observable<IAuthResponse> {
+    this.loggerService.log({ session, code }, 'CognitoAuthProvider.signIn');
+
     const command = new RespondToAuthChallengeCommand({
       ClientId: this.clientId,
       ChallengeName: ChallengeNameType.SOFTWARE_TOKEN_MFA,
@@ -250,6 +351,8 @@ export class CognitoAuthProvider implements IAuthProvider {
 
   // Admin APIs for managing users
   adminSignIn(email: string): Observable<IAuthResponse> {
+    this.loggerService.log({ email }, 'CognitoAuthProvider.signIn');
+
     const command = new AdminInitiateAuthCommand({
       UserPoolId: this.userPoolId,
       ClientId: this.clientId,
@@ -278,6 +381,11 @@ export class CognitoAuthProvider implements IAuthProvider {
     challengeName: string,
     responses: Record<string, string>,
   ): Observable<IAuthResponse> {
+    this.loggerService.log(
+      { session, challengeName },
+      'CognitoAuthProvider.signIn',
+    );
+
     const command = new AdminRespondToAuthChallengeCommand({
       UserPoolId: this.userPoolId,
       ClientId: this.clientId,
@@ -304,6 +412,11 @@ export class CognitoAuthProvider implements IAuthProvider {
     enabled: boolean;
     preferred: string | null;
   }> {
+    this.loggerService.log(
+      { accessToken: accessToken.length },
+      'CognitoAuthProvider.signIn',
+    );
+
     const command = new GetUserCommand({
       AccessToken: accessToken,
     });
@@ -329,6 +442,11 @@ export class CognitoAuthProvider implements IAuthProvider {
     accessToken: string,
     enabled: boolean,
   ): Observable<boolean> {
+    this.loggerService.log(
+      { accessToken: accessToken.length, enabled: true },
+      'setUserMFAPreference.signIn',
+    );
+
     const command = new SetUserMFAPreferenceCommand({
       AccessToken: accessToken,
       SoftwareTokenMfaSettings: {
