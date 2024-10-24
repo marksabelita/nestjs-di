@@ -12,6 +12,14 @@ export class SignInDto {
   password: string;
 }
 
+export class ConfirmSignUpDto {
+  @TrimStringDecorator({ required: true })
+  email: string;
+
+  @TrimStringDecorator({ required: true })
+  code: string;
+}
+
 export class SignUpDto {
   @EmailDecorator({ required: true })
   email: string;
@@ -30,7 +38,7 @@ export class RefreshTokenDto {
 
 export class MFASetupDto {
   @TrimStringDecorator({ required: true })
-  userId: string;
+  email: string;
 }
 
 export class MFAVerifySetupDto {

@@ -1,10 +1,9 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { Observable } from 'rxjs';
+import { Observable, switchMap } from 'rxjs';
 import {
   IAuthProvider,
   IAuthResponse,
   IAuthService,
-  IMFASetupResponse,
   IMFAVerifyResponse,
   IRefreshTokenResponse,
 } from './auth.interface';
@@ -14,7 +13,7 @@ import { ILoggerService } from '../logger/logger.interface';
 export class AuthService implements IAuthService {
   constructor(
     @Inject(IAuthProvider)
-    private readonly authProvider: IAuthService,
+    private readonly authProvider: IAuthProvider,
     @Inject(ILoggerService)
     private readonly loggerService: ILoggerService,
   ) {}
@@ -30,12 +29,15 @@ export class AuthService implements IAuthService {
 
   confirmSignUp(email: string, code: string): Observable<boolean> {
     this.loggerService.log({ email }, 'AuthService.confirmSignUp');
-    return this.authProvider.confirmSignUp(email, code);
+
+    return this.authProvider.confirmSignUp(email, code).pipe(
+      switchMap(() => this.authProvider.setupSMSMfa(email)),
+      switchMap(() => this.authProvider.requestPhoneVerification(email)),
+    );
   }
 
   resendConfirmationCode(email: string): Observable<boolean> {
-    this.loggerService.log({ email }, 'AuthService.resendConfirmationCode');
-    return this.authProvider.resendConfirmationCode(email);
+    throw new Error('error');
   }
 
   signIn(email: string, password: string): Observable<IAuthResponse> {
@@ -43,15 +45,15 @@ export class AuthService implements IAuthService {
   }
 
   signOut(accessToken: string): Observable<boolean> {
-    return this.authProvider.signOut(accessToken);
+    throw new Error('error');
   }
 
   refreshToken(refreshToken: string): Observable<IRefreshTokenResponse> {
     return this.authProvider.refreshToken(refreshToken);
   }
 
-  setupMFA(userId: string): Observable<IMFASetupResponse> {
-    return this.authProvider.setupMFA(userId);
+  setupMFA(userId: string): Observable<boolean> {
+    throw new Error('error');
   }
 
   verifyMFASetup(
@@ -59,7 +61,8 @@ export class AuthService implements IAuthService {
     factorId: string,
     code: string,
   ): Observable<IMFAVerifyResponse> {
-    return this.authProvider.verifyMFASetup(userId, factorId, code);
+    throw new Error('error');
+    // return this.authProvider.verifyMFASetup(userId, factorId, code);
   }
 
   verifyMFAChallenge(
@@ -67,16 +70,22 @@ export class AuthService implements IAuthService {
     factorId: string,
     code: string,
   ): Observable<IAuthResponse> {
-    return this.authProvider.verifyMFAChallenge(session, factorId, code);
+    throw new Error('error');
+
+    // return this.authProvider.verifyMFAChallenge(session, factorId, code);
   }
 
   getMFAPreference(
     userId: string,
   ): Observable<{ enabled: boolean; preferred: string | null }> {
-    return this.authProvider.getMFAPreference(userId);
-  }
+    throw new Error('error');
 
+    // return this.authProvider.getMFAPreference(userId);
+  }
+  //
   setMFAPreference(userId: string, enabled: boolean): Observable<boolean> {
-    return this.authProvider.setMFAPreference(userId, enabled);
+    throw new Error('error');
+
+    // return this.authProvider.setMFAPreference(userId, enabled);
   }
 }

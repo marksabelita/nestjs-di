@@ -1,19 +1,12 @@
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Inject,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Inject, Post } from '@nestjs/common';
 import {
   IAuthResponse,
   IAuthService,
-  IMFASetupResponse,
   IMFAVerifyResponse,
   IRefreshTokenResponse,
 } from 'src/common/module/auth/auth.interface';
 import {
+  ConfirmSignUpDto,
   MFAPreferenceDto,
   MFASetupDto,
   MFAVerifyChallengeDto,
@@ -23,15 +16,18 @@ import {
   SignUpDto,
 } from './auth-user.interface';
 import { Observable } from 'rxjs';
+import { DEFAULT_ROUTES } from 'src/common/defaults/routes.default';
+import { ApiTags } from '@nestjs/swagger';
+import { DEFAULT_TAGS } from 'src/common/defaults/api-tags.default';
 
-@Controller('auth')
+@ApiTags(DEFAULT_TAGS.AUTH)
+@Controller(DEFAULT_ROUTES.AUTH)
 export class AuthUserController {
   constructor(
     @Inject(IAuthService) private readonly authService: IAuthService,
   ) {}
 
-  @Post('signup')
-  @HttpCode(HttpStatus.CREATED)
+  @Post(DEFAULT_ROUTES.SIGNUP)
   signUp(@Body() credentials: SignUpDto): Observable<IAuthResponse> {
     return this.authService.signUp(
       credentials.email,
@@ -40,44 +36,34 @@ export class AuthUserController {
     );
   }
 
-  // @Post('signup')
-  // @HttpCode(HttpStatus.CREATED)
-  // signUp(@Body() credentials: SignUpDto): Observable<IAuthResponse> {
-  //   return this.authService.signUp(
-  //     credentials.email,
-  //     credentials.password,
-  //     credentials.phoneNumber,
-  //   );
-  // }
+  @Post(DEFAULT_ROUTES.CONFIRM_SIGNUP)
+  confirmSignUp(@Body() body: ConfirmSignUpDto): Observable<boolean> {
+    return this.authService.confirmSignUp(body.email, body.code);
+  }
 
-  @Post('signin')
-  @HttpCode(HttpStatus.OK)
+  @Post(DEFAULT_ROUTES.SIGNIN)
   signIn(@Body() credentials: SignInDto): Observable<IAuthResponse> {
     return this.authService.signIn(credentials.email, credentials.password);
   }
 
-  @Post('signout')
-  @HttpCode(HttpStatus.OK)
+  @Post(DEFAULT_ROUTES.SIGNOUT)
   signOut(@Body() body: { accessToken: string }): Observable<boolean> {
     return this.authService.signOut(body.accessToken);
   }
 
-  @Post('refresh')
-  @HttpCode(HttpStatus.OK)
+  @Post(DEFAULT_ROUTES.REFRESH)
   refreshToken(
     @Body() body: RefreshTokenDto,
   ): Observable<IRefreshTokenResponse> {
     return this.authService.refreshToken(body.refreshToken);
   }
 
-  @Post('mfa/setup')
-  @HttpCode(HttpStatus.OK)
-  setupMFA(@Body() body: MFASetupDto): Observable<IMFASetupResponse> {
-    return this.authService.setupMFA(body.userId);
+  @Post(DEFAULT_ROUTES.MFA_SETUP)
+  setupMFA(@Body() body: MFASetupDto): Observable<boolean> {
+    return this.authService.setupMFA(body.email);
   }
 
-  @Post('mfa/verify-setup')
-  @HttpCode(HttpStatus.OK)
+  @Post(DEFAULT_ROUTES.MFA_VERIFY_SETUP)
   verifyMFASetup(
     @Body() body: MFAVerifySetupDto,
   ): Observable<IMFAVerifyResponse> {
@@ -88,8 +74,7 @@ export class AuthUserController {
     );
   }
 
-  @Post('mfa/verify-challenge')
-  @HttpCode(HttpStatus.OK)
+  @Post(DEFAULT_ROUTES.MFA_VERIFY_CHALLENGE)
   verifyMFAChallenge(
     @Body() body: MFAVerifyChallengeDto,
   ): Observable<IAuthResponse> {
@@ -100,14 +85,12 @@ export class AuthUserController {
     );
   }
 
-  @Post('mfa/preference')
-  @HttpCode(HttpStatus.OK)
+  @Post(DEFAULT_ROUTES.MFA_PREFERENCE)
   setMFAPreference(@Body() body: MFAPreferenceDto): Observable<boolean> {
     return this.authService.setMFAPreference(body.userId, body.enabled);
   }
 
-  @Post('mfa/get-preference')
-  @HttpCode(HttpStatus.OK)
+  @Post(DEFAULT_ROUTES.MFA_GET_PREFERENCE)
   getMFAPreference(
     @Body() body: { userId: string },
   ): Observable<{ enabled: boolean; preferred: string | null }> {

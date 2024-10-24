@@ -38,20 +38,14 @@ export interface IAuthProvider {
     phoneNumber: string,
   ): Observable<IAuthResponse>;
   confirmSignUp(email: string, code: string): Observable<boolean>;
-  resendConfirmationCode(email: string): Observable<boolean>;
-
+  setupSMSMfa(email: string): Observable<boolean>;
+  requestPhoneVerification(email: string): Observable<boolean>;
   signIn(email: string, password: string): Observable<IAuthResponse>;
-  setupMFA(userId: string): Observable<IMFASetupResponse>;
-  verifyMFASetup(
-    userId: string,
-    factorId: string,
-    code: string,
-  ): Observable<IMFAVerifyResponse>;
-  verifyMFAChallenge(
-    session: string,
-    factorId: string,
-    code: string,
-  ): Observable<IAuthResponse>;
+  setupMFA(email: string): Observable<{ secretCode: string }>;
+  getUserMFAPreference(accessToken: string): Observable<{
+    enabled: boolean;
+    preferred: string | null;
+  }>;
   refreshToken(refreshToken: string): Observable<IRefreshTokenResponse>;
 }
 
@@ -68,8 +62,7 @@ export interface IAuthService {
   refreshToken(refreshToken: string): Observable<IRefreshTokenResponse>;
   confirmSignUp(email: string, code: string): Observable<boolean>;
   resendConfirmationCode(email: string): Observable<boolean>;
-
-  setupMFA(userId: string): Observable<IMFASetupResponse>;
+  setupMFA(accessToken: string): Observable<boolean>;
   verifyMFASetup(
     userId: string,
     factorId: string,

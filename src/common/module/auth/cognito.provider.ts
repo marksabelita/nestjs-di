@@ -1,17 +1,12 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Observable, from, throwError } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
+import { map, catchError, switchMap } from 'rxjs/operators';
 import {
   CognitoIdentityProviderClient,
   SignUpCommand,
   InitiateAuthCommand,
-  AssociateSoftwareTokenCommand,
-  VerifySoftwareTokenCommand,
-  RespondToAuthChallengeCommand,
   GetUserCommand,
   SetUserMFAPreferenceCommand,
-  AdminInitiateAuthCommand,
-  AdminRespondToAuthChallengeCommand,
   AuthFlowType,
   ChallengeNameType,
   ConfirmSignUpCommand,
@@ -19,15 +14,15 @@ import {
   ExpiredCodeException,
   NotAuthorizedException,
   UserNotFoundException,
-  ResendConfirmationCodeCommand,
+  AdminSetUserMFAPreferenceCommand,
+  AssociateSoftwareTokenCommand,
+  AdminInitiateAuthCommand,
   LimitExceededException,
-  TooManyRequestsException,
+  GetUserAttributeVerificationCodeCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import {
   IAuthProvider,
   IAuthResponse,
-  IMFASetupResponse,
-  IMFAVerifyResponse,
   IRefreshTokenResponse,
 } from './auth.interface';
 import {
@@ -85,7 +80,7 @@ export class CognitoAuthProvider implements IAuthProvider {
     password: string,
     phoneNumber: string,
   ): Observable<IAuthResponse> {
-    this.loggerService.log({ email }, 'CognitoAuthProvider.confirmSignUp');
+    this.loggerService.log({ email }, 'CognitoAuthProvider.signUp');
 
     const command = new SignUpCommand({
       ClientId: this.clientId,
@@ -107,8 +102,8 @@ export class CognitoAuthProvider implements IAuthProvider {
     return from(this.cognitoClient.send(command)).pipe(
       map((result) => ({
         userId: result.UserSub,
-        status: 'SUCCESS',
-        mfaRequired: false,
+        status: 'SETUP_MFA_REQUIRED', // Changed to indicate MFA setup is needed
+        mfaRequired: true, // Always true for new signups
       })),
       catchError((error) =>
         throwError(() => new UnauthorizedException(error.message)),
@@ -147,44 +142,6 @@ export class CognitoAuthProvider implements IAuthProvider {
     );
   }
 
-  resendConfirmationCode(email: string): Observable<boolean> {
-    this.loggerService.log(
-      { email },
-      'CognitoAuthProvider.resendConfirmationCode',
-    );
-
-    const command = new ResendConfirmationCodeCommand({
-      ClientId: this.clientId,
-      Username: email,
-      SecretHash: this.calculateSecretHash(email),
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map(() => true),
-      catchError((error) => {
-        if (error instanceof UserNotFoundException) {
-          return throwError(() => new Error('User not found'));
-        }
-        if (error instanceof LimitExceededException) {
-          return throwError(
-            () => new Error('Attempt limit exceeded, please try again later'),
-          );
-        }
-        if (error instanceof TooManyRequestsException) {
-          return throwError(
-            () => new Error('Too many requests, please try again later'),
-          );
-        }
-        if (error instanceof NotAuthorizedException) {
-          return throwError(() => new Error('Not authorized to resend code'));
-        }
-        return throwError(
-          () => new Error('Failed to resend confirmation code'),
-        );
-      }),
-    );
-  }
-
   signIn(email: string, password: string): Observable<IAuthResponse> {
     this.loggerService.log({ email }, 'CognitoAuthProvider.signIn');
 
@@ -200,20 +157,42 @@ export class CognitoAuthProvider implements IAuthProvider {
 
     return from(this.cognitoClient.send(command)).pipe(
       map((result) => {
+        // Check if MFA is not set up
+        if (!result.ChallengeName) {
+          // Force MFA setup if not already done
+          return {
+            token: result.Session,
+            status: 'SETUP_MFA_REQUIRED',
+            mfaRequired: true,
+            challengeParameters: result.ChallengeParameters,
+          };
+        }
+
+        // Normal MFA challenge flow
+        if (result.ChallengeName === ChallengeNameType.SOFTWARE_TOKEN_MFA) {
+          return {
+            token: result.Session,
+            status: ChallengeNameType.SOFTWARE_TOKEN_MFA,
+            mfaRequired: true,
+            challengeParameters: result.ChallengeParameters,
+          };
+        }
+
+        // Even if authentication is successful, we still require MFA
         if (result.AuthenticationResult) {
           return {
             accessToken: result.AuthenticationResult.AccessToken,
             refreshToken: result.AuthenticationResult.RefreshToken,
-            status: 'SUCCESS',
-            mfaRequired: false,
+            status: 'MFA_REQUIRED',
+            mfaRequired: true,
             expiresIn: result.AuthenticationResult.ExpiresIn,
           };
         }
+
         return {
           token: result.Session,
-          status: result.ChallengeName || 'SUCCESS',
-          mfaRequired:
-            result.ChallengeName === ChallengeNameType.SOFTWARE_TOKEN_MFA,
+          status: 'MFA_REQUIRED',
+          mfaRequired: true,
           challengeParameters: result.ChallengeParameters,
         };
       }),
@@ -223,10 +202,183 @@ export class CognitoAuthProvider implements IAuthProvider {
     );
   }
 
+  setupMFA(email: string): Observable<{ secretCode: string }> {
+    this.loggerService.log({ email }, 'CognitoAuthProvider.signIn');
+
+    const initiateAuthCommand = new AdminInitiateAuthCommand({
+      UserPoolId: this.userPoolId,
+      ClientId: this.clientId,
+      AuthFlow: AuthFlowType.ADMIN_NO_SRP_AUTH,
+      AuthParameters: {
+        USERNAME: email,
+      },
+    });
+
+    return from(this.cognitoClient.send(initiateAuthCommand)).pipe(
+      switchMap((authResult) => {
+        // Now associate the software token
+        const associateCommand = new AssociateSoftwareTokenCommand({
+          Session: authResult.Session,
+        });
+
+        return from(this.cognitoClient.send(associateCommand));
+      }),
+      map((result) => {
+        if (!result.SecretCode) {
+          throw new Error('Failed to generate secret code for MFA setup');
+        }
+        return { secretCode: result.SecretCode };
+      }),
+      catchError((error) => {
+        this.loggerService.error(error, 'Failed to setup MFA');
+        return throwError(
+          () => new Error(`Failed to enable MFA: ${error.message}`),
+        );
+      }),
+    );
+  }
+
+  setupSMSMfa(email: string): Observable<boolean> {
+    this.loggerService.log({ email }, 'CognitoDP.setupSMSMfa');
+
+    const command = new AdminSetUserMFAPreferenceCommand({
+      UserPoolId: this.userPoolId,
+      Username: email,
+    });
+
+    return from(this.cognitoClient.send(command)).pipe(
+      map(() => true),
+      catchError((error) => {
+        this.loggerService.error(error, 'Failed to setup SMS MFA');
+        return throwError(() => new Error('Failed to enable SMS MFA'));
+      }),
+    );
+  }
+
+  private getAdminToken(email: string): Observable<string> {
+    this.loggerService.log({ email }, 'CognitoDP.getAdminToken');
+
+    const command = new InitiateAuthCommand({
+      AuthFlow: AuthFlowType.ADMIN_NO_SRP_AUTH,
+      ClientId: this.clientId,
+      AuthParameters: {
+        USERNAME: email,
+      },
+    });
+
+    return from(this.cognitoClient.send(command)).pipe(
+      map((response) => response.AuthenticationResult.AccessToken),
+      catchError((error) => {
+        this.loggerService.error(error, 'Failed to get admin token');
+        return throwError(() => new Error('Failed to authenticate'));
+      }),
+    );
+  }
+
+  requestPhoneVerification(email: string): Observable<boolean> {
+    this.loggerService.log({ email }, 'CognitoDP.requestPhoneVerification');
+
+    return this.getAdminToken(email).pipe(
+      switchMap((accessToken) => {
+        console.log(accessToken);
+
+        const command = new GetUserAttributeVerificationCodeCommand({
+          AccessToken: accessToken,
+          AttributeName: 'phone_number',
+        });
+
+        return from(this.cognitoClient.send(command));
+      }),
+      map(() => true),
+      catchError((error) => {
+        if (error instanceof LimitExceededException) {
+          return throwError(
+            () => new Error('Too many attempts. Please try again later'),
+          );
+        }
+        return throwError(() => new Error('Failed to send verification code'));
+      }),
+    );
+  }
+
+  getUserMFAPreference(accessToken: string): Observable<{
+    enabled: boolean;
+    preferred: string | null;
+  }> {
+    this.loggerService.log(
+      { accessToken: accessToken.length },
+      'CognitoAuthProvider.getUserMFAPreference',
+    );
+
+    const command = new GetUserCommand({
+      AccessToken: accessToken,
+    });
+
+    return from(this.cognitoClient.send(command)).pipe(
+      map((result) => {
+        const mfaEnabled =
+          result.UserMFASettingList?.includes('SOFTWARE_TOKEN_MFA') ?? false;
+        if (!mfaEnabled) {
+          throw new UnauthorizedException(
+            'MFA must be enabled to use this service',
+          );
+        }
+        return {
+          enabled: true, // Always return true as MFA is required
+          preferred: result.PreferredMfaSetting || 'SOFTWARE_TOKEN_MFA',
+        };
+      }),
+      catchError((error) =>
+        throwError(
+          () =>
+            new UnauthorizedException(
+              'Failed to get MFA preferences: ' + error.message,
+            ),
+        ),
+      ),
+    );
+  }
+
+  setUserMFAPreference(
+    accessToken: string,
+    enabled: boolean,
+  ): Observable<boolean> {
+    if (!enabled) {
+      return throwError(
+        () => new UnauthorizedException('MFA cannot be disabled'),
+      );
+    }
+
+    this.loggerService.log(
+      { accessToken: accessToken.length },
+      'CognitoAuthProvider.setUserMFAPreference',
+    );
+
+    const command = new SetUserMFAPreferenceCommand({
+      AccessToken: accessToken,
+      SoftwareTokenMfaSettings: {
+        Enabled: true, // Always true
+        PreferredMfa: true,
+      },
+    });
+
+    return from(this.cognitoClient.send(command)).pipe(
+      map(() => true),
+      catchError((error) =>
+        throwError(
+          () =>
+            new UnauthorizedException(
+              'Failed to set MFA preference: ' + error.message,
+            ),
+        ),
+      ),
+    );
+  }
+
   refreshToken(refreshToken: string): Observable<IRefreshTokenResponse> {
     this.loggerService.log(
       { refreshToken: refreshToken.length },
-      'CognitoAuthProvider.signIn',
+      'CognitoAuthProvider.refreshToken',
     );
 
     const command = new InitiateAuthCommand({
@@ -251,219 +403,6 @@ export class CognitoAuthProvider implements IAuthProvider {
       }),
       catchError(() =>
         throwError(() => new UnauthorizedException('Invalid refresh token')),
-      ),
-    );
-  }
-
-  setupMFA(accessToken: string): Observable<IMFASetupResponse> {
-    this.loggerService.log(
-      { refreshToken: accessToken.length },
-      'CognitoAuthProvider.signIn',
-    );
-
-    const command = new AssociateSoftwareTokenCommand({
-      AccessToken: accessToken,
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map((result) => ({
-        factorId: 'SOFTWARE_TOKEN_MFA',
-        secretCode: result.SecretCode,
-        status: 'SUCCESS',
-      })),
-      catchError((error) =>
-        throwError(
-          () =>
-            new UnauthorizedException('Failed to setup MFA: ' + error.message),
-        ),
-      ),
-    );
-  }
-
-  verifyMFASetup(
-    accessToken: string,
-    factorId: string,
-    code: string,
-  ): Observable<IMFAVerifyResponse> {
-    this.loggerService.log(
-      { refreshToken: accessToken.length, code },
-      'CognitoAuthProvider.signIn',
-    );
-
-    const command = new VerifySoftwareTokenCommand({
-      AccessToken: accessToken,
-      UserCode: code,
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map((result) => ({
-        success: result.Status === 'SUCCESS',
-        status: result.Status,
-      })),
-      catchError((error) =>
-        throwError(
-          () =>
-            new UnauthorizedException(
-              'Failed to verify MFA setup: ' + error.message,
-            ),
-        ),
-      ),
-    );
-  }
-
-  verifyMFAChallenge(
-    session: string,
-    factorId: string,
-    code: string,
-  ): Observable<IAuthResponse> {
-    this.loggerService.log({ session, code }, 'CognitoAuthProvider.signIn');
-
-    const command = new RespondToAuthChallengeCommand({
-      ClientId: this.clientId,
-      ChallengeName: ChallengeNameType.SOFTWARE_TOKEN_MFA,
-      Session: session,
-      ChallengeResponses: {
-        SOFTWARE_TOKEN_MFA_CODE: code,
-      },
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map((result) => {
-        if (!result.AuthenticationResult) {
-          throw new UnauthorizedException('MFA verification failed');
-        }
-        return {
-          accessToken: result.AuthenticationResult.AccessToken,
-          refreshToken: result.AuthenticationResult.RefreshToken,
-          status: 'SUCCESS',
-          mfaRequired: false,
-          expiresIn: result.AuthenticationResult.ExpiresIn,
-        };
-      }),
-      catchError((error) =>
-        throwError(
-          () =>
-            new UnauthorizedException('Failed to verify MFA: ' + error.message),
-        ),
-      ),
-    );
-  }
-
-  // Admin APIs for managing users
-  adminSignIn(email: string): Observable<IAuthResponse> {
-    this.loggerService.log({ email }, 'CognitoAuthProvider.signIn');
-
-    const command = new AdminInitiateAuthCommand({
-      UserPoolId: this.userPoolId,
-      ClientId: this.clientId,
-      AuthFlow: AuthFlowType.ADMIN_NO_SRP_AUTH,
-      AuthParameters: {
-        USERNAME: email,
-      },
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map((result) => ({
-        token: result.Session,
-        status: result.ChallengeName || 'SUCCESS',
-        mfaRequired:
-          result.ChallengeName === ChallengeNameType.SOFTWARE_TOKEN_MFA,
-        challengeParameters: result.ChallengeParameters,
-      })),
-      catchError((error) =>
-        throwError(() => new UnauthorizedException(error.message)),
-      ),
-    );
-  }
-
-  adminRespondToAuthChallenge(
-    session: string,
-    challengeName: string,
-    responses: Record<string, string>,
-  ): Observable<IAuthResponse> {
-    this.loggerService.log(
-      { session, challengeName },
-      'CognitoAuthProvider.signIn',
-    );
-
-    const command = new AdminRespondToAuthChallengeCommand({
-      UserPoolId: this.userPoolId,
-      ClientId: this.clientId,
-      ChallengeName: challengeName as ChallengeNameType,
-      ChallengeResponses: responses,
-      Session: session,
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map((result) => ({
-        accessToken: result.AuthenticationResult?.AccessToken,
-        refreshToken: result.AuthenticationResult?.RefreshToken,
-        status: result.ChallengeName || 'SUCCESS',
-        mfaRequired: false,
-        expiresIn: result.AuthenticationResult?.ExpiresIn,
-      })),
-      catchError((error) =>
-        throwError(() => new UnauthorizedException(error.message)),
-      ),
-    );
-  }
-
-  getUserMFAPreference(accessToken: string): Observable<{
-    enabled: boolean;
-    preferred: string | null;
-  }> {
-    this.loggerService.log(
-      { accessToken: accessToken.length },
-      'CognitoAuthProvider.signIn',
-    );
-
-    const command = new GetUserCommand({
-      AccessToken: accessToken,
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map((result) => ({
-        enabled:
-          result.UserMFASettingList?.includes('SOFTWARE_TOKEN_MFA') ?? false,
-        preferred: result.PreferredMfaSetting || null,
-      })),
-      catchError((error) =>
-        throwError(
-          () =>
-            new UnauthorizedException(
-              'Failed to get MFA preferences: ' + error.message,
-            ),
-        ),
-      ),
-    );
-  }
-
-  setUserMFAPreference(
-    accessToken: string,
-    enabled: boolean,
-  ): Observable<boolean> {
-    this.loggerService.log(
-      { accessToken: accessToken.length, enabled: true },
-      'setUserMFAPreference.signIn',
-    );
-
-    const command = new SetUserMFAPreferenceCommand({
-      AccessToken: accessToken,
-      SoftwareTokenMfaSettings: {
-        Enabled: enabled,
-        PreferredMfa: enabled,
-      },
-    });
-
-    return from(this.cognitoClient.send(command)).pipe(
-      map(() => enabled),
-      catchError((error) =>
-        throwError(
-          () =>
-            new UnauthorizedException(
-              'Failed to set MFA preference: ' + error.message,
-            ),
-        ),
       ),
     );
   }
